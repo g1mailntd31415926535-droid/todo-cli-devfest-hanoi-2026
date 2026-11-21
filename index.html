@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todo - Quản lý công việc</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#eef2f7;color:#1f2937;min-height:100vh;display:flex;justify-content:center;padding:32px 16px}
+main{width:100%;max-width:560px}
+h1{margin:0 0 4px;font-size:28px}
+.sub{margin:0 0 20px;color:#6b7280;font-size:14px}
+.card{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.08);padding:16px}
+form{display:flex;gap:8px}
+input[type=text]{flex:1;padding:12px 14px;border:1px solid #d1d5db;border-radius:10px;font-size:16px}
+input[type=text]:focus{outline:2px solid #4285f4;border-color:#4285f4}
+button{cursor:pointer;border:0;border-radius:10px;font-size:15px}
+.add{background:#4285f4;color:#fff;padding:0 18px}
+.stats{display:flex;justify-content:space-between;align-items:center;margin:14px 2px 8px;font-size:14px;color:#6b7280}
+.filters button{background:none;color:#6b7280;padding:4px 10px}
+.filters button.on{background:#e8f0fe;color:#1a56db;font-weight:600}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid #f0f2f5}
+li span{flex:1;word-break:break-word;cursor:text}
+li.done span{text-decoration:line-through;color:#9ca3af}
+li input[type=checkbox]{width:20px;height:20px;cursor:pointer}
+.del{background:none;color:#ef4444;font-size:18px;padding:2px 8px}
+.edit{flex:1;padding:6px 8px;border:1px solid #4285f4;border-radius:8px;font-size:16px}
+.empty{text-align:center;color:#9ca3af;padding:24px 0}
+.clear{background:none;color:#6b7280;text-decoration:underline;font-size:13px;padding:0}
+footer{margin-top:16px;text-align:center;font-size:12px;color:#9ca3af}
+</style>
+</head>
+<body>
+<main>
+<h1>Todo</h1>
+<p class="sub">Thêm, hoàn thành, sửa và xóa công việc. Dữ liệu được lưu ngay trong trình duyệt của bạn.</p>
+<div class="card">
+<form id="f">
+<input type="text" id="t" placeholder="Việc cần làm tiếp theo..." maxlength="200" autocomplete="off" autofocus>
+<button class="add" type="submit">Thêm</button>
+</form>
+<div class="stats">
+<span id="count"></span>
+<span class="filters" id="filters">
+<button data-f="all" class="on">Tất cả</button>
+<button data-f="active">Đang làm</button>
+<button data-f="done">Đã xong</button>
+</span>
+</div>
+<ul id="list"></ul>
+<div class="stats"><span></span><button class="clear" id="clear">Xóa các việc đã xong</button></div>
+</div>
+<footer>Phiên bản web của Todo CLI - GDG DevFest Hanoi 2026</footer>
+</main>
+<script>
+var KEY = "todo-tasks-v1";
+var tasks = [];
+var filter = "all";
+try { tasks = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { tasks = []; }
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch (e) {}
+}
+function nextId() {
+  return tasks.reduce(function (m, t) { return Math.max(m, t.id); }, 0) + 1;
+}
+function render() {
+  var list = document.getElementById("list");
+  list.innerHTML = "";
+  var shown = tasks.filter(function (t) {
+    return filter === "all" || (filter === "done" ? t.done : !t.done);
+  });
+  if (!shown.length) {
+    var empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = filter === "done" ? "Chưa có việc nào hoàn thành." : "Chưa có việc nào. Hãy thêm việc đầu tiên!";
+    list.appendChild(empty);
+  }
+  shown.forEach(function (t) {
+    var li = document.createElement("li");
+    if (t.done) li.className = "done";
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = t.done;
+    cb.setAttribute("aria-label", "Hoàn thành");
+    cb.onchange = function () { t.done = cb.checked; save(); render(); };
+    var span = document.createElement("span");
+    span.textContent = t.text;
+    span.title = "Bấm đúp để sửa";
+    span.ondblclick = function () { startEdit(li, span, t); };
+    var del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "×";
+    del.setAttribute("aria-label", "Xóa");
+    del.onclick = function () {
+      tasks = tasks.filter(function (x) { return x.id !== t.id; });
+      save(); render();
+    };
+    li.appendChild(cb);
+    li.appendChild(span);
+    li.appendChild(del);
+    list.appendChild(li);
+  });
+  var left = tasks.filter(function (t) { return !t.done; }).length;
+  document.getElementById("count").textContent = left + " việc chưa xong / " + tasks.length + " tổng";
+}
+function startEdit(li, span, t) {
+  var input = document.createElement("input");
+  input.className = "edit";
+  input.value = t.text;
+  li.replaceChild(input, span);
+  input.focus();
+  var finish = function (ok) {
+    var v = input.value.trim();
+    if (ok && v) t.text = v;
+    save(); render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+document.getElementById("f").onsubmit = function (e) {
+  e.preventDefault();
+  var box = document.getElementById("t");
+  var v = box.value.trim();
+  if (!v) return;
+  tasks.push({ id: nextId(), text: v, done: false });
+  box.value = "";
+  save(); render();
+};
+document.getElementById("filters").onclick = function (e) {
+  var f = e.target.getAttribute("data-f");
+  if (!f) return;
+  filter = f;
+  Array.prototype.forEach.call(this.children, function (b) {
+    b.className = b.getAttribute("data-f") === f ? "on" : "";
+  });
+  render();
+};
+document.getElementById("clear").onclick = function () {
+  tasks = tasks.filter(function (t) { return !t.done; });
+  save(); render();
+};
+render();
+</script>
+</body>
+</html>
